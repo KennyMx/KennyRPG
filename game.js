@@ -421,16 +421,6 @@ class SFX {
 
 const sfx = new SFX();
 
-// #region agent log
-function dbgLog(location, message, data, hypothesisId) {
-  fetch("http://127.0.0.1:7530/ingest/dd490957-5254-4906-9b30-cad6a5e3031f", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "99f55f" },
-    body: JSON.stringify({ sessionId: "99f55f", location, message, data, hypothesisId, timestamp: Date.now() }),
-  }).catch(() => {});
-}
-// #endregion
-
 /* ================================================================== *
  *  STAGE 2 SYSTEMS
  *  Data definitions + small manager classes. These are intentionally
@@ -458,7 +448,7 @@ const ITEMS = {
     slot: "weapon",
     attack: 5,
     defense: 0,
-    description: "Mira's old sword. Worn, but reliable. +5 Attack.",
+    description: "Mira's old sword. Worn, but yours. +5 Attack.",
   },
   torn_clothes: {
     id: "torn_clothes",
@@ -474,7 +464,7 @@ const ITEMS = {
     slot: "armor",
     attack: 0,
     defense: 3,
-    description: "Sturdy boiled leather from Doran's forge. +3 Defense.",
+    description: "Doran's boiled leather. Made to hold back forest shadows. +3 Defense.",
   },
 };
 
@@ -2898,13 +2888,16 @@ class VillageScene extends Phaser.Scene {
     if (this.equipment.get("weapon") !== "old_iron_sword") {
       return {
         lines: [
-          "You should equip the sword. Something is wrong with the forest, and I don't want you going unprepared.",
+          "Equip the sword before you go on. Bram sent you east for a reason - the forest is no longer safe.",
         ],
         onComplete: null,
       };
     }
     return {
-      lines: ["That sword suits you. Maybe my memories are not completely gone after all."],
+      lines: [
+        "That sword suits you. Bram was right to send you my way first.",
+        "Go to Doran's forge when you are ready. He will tell you what we are up against.",
+      ],
       onComplete: null,
     };
   }
@@ -2930,8 +2923,11 @@ class VillageScene extends Phaser.Scene {
     if (!this.flags.spokeToBram) {
       return {
         lines: [
-          "You came back at a strange time, child. By morning, most of us will not remember this conversation.",
-          "The forest is where the curse began. But do not enter it unprepared. Speak with Doran first.",
+          "Child... thank the stars you came back. Willowmere is failing. Each night, more of us wake with empty minds.",
+          "I am losing memories too. Names. Faces. Even why the well was dug. I fear soon I will forget why I am afraid.",
+          "It began in the forest, years ago. Something we did there started all of this. I cannot tell you the whole truth yet - the curse punishes those who speak it plainly.",
+          "But you may still save the village. First, find Doran at the forge. He knows what you'll face, and he can arm you.",
+          "On your way east through the street, you will pass Mira. She remembers more than any of us. She may have something that once belonged to you.",
         ],
         onComplete: () => {
           this.flags.spokeToBram = true;
@@ -2942,12 +2938,18 @@ class VillageScene extends Phaser.Scene {
     }
     if (this.flags.armorGiven) {
       return {
-        lines: ["Good. Armor will keep your body safe. But memories are harder to protect."],
+        lines: [
+          "Good. Doran has done his part. The armor will guard your body in the forest.",
+          "What remains is harder. The shadows out there are born from what we chose to forget.",
+        ],
         onComplete: null,
       };
     }
     return {
-      lines: ["Doran is at his forge, past the village. He will prepare you for the forest."],
+      lines: [
+        "Doran waits at the forge, past the village. Speak with Mira on the way if you have not already.",
+        "Do not enter the forest until you are armed. Too many have walked in with nothing but hope.",
+      ],
       onComplete: null,
     };
   }
@@ -2957,7 +2959,8 @@ class VillageScene extends Phaser.Scene {
     if (!this.flags.spokeToBram) {
       return {
         lines: [
-          "If Bram sent you, then I'll help. Otherwise, I can't hand out gear to every traveler with a sad story.",
+          "Hold on. I don't hand out village steel to every stranger with a sad face.",
+          "If Elder Bram sent you, go speak with him first. He decides who gets told the truth.",
         ],
         onComplete: null,
       };
@@ -2965,20 +2968,31 @@ class VillageScene extends Phaser.Scene {
     if (!this.flags.armorGiven) {
       return {
         lines: [
-          "So Bram finally told someone the truth... or part of it.",
-          "Take this Leather Armor. The forest does not forgive the unprepared.",
+          "Bram sent you. Good - that means he still remembers enough to ask for help.",
+          "Let me be plain. Years ago, Willowmere did something terrible in the forest. The elders cast a spell so the village would forget it by morning.",
+          "That spell never stopped. It grew. Now people forget their own names. Shadows crawl out of the woods where our guilt was buried.",
+          "You cannot walk that path in travel clothes. These shadows tear at flesh and memory alike.",
+          "Take this Leather Armor. Wear it before you reach the Forest Gate past my forge.",
+          "Find the source of the curse if you can. Bram believes you are the one who might end it.",
         ],
         onComplete: () => this.grantArmor(),
       };
     }
     if (this.equipment.get("armor") !== "leather_armor") {
       return {
-        lines: ["Equip that armor before you go. A sword means nothing if one shadow bite drops you."],
+        lines: [
+          "Equip the armor, friend. A sword from Mira will not stop a shadow from reaching your skin.",
+          "The gate to the forest is east of here. Do not pass through until the leather is on you.",
+        ],
         onComplete: null,
       };
     }
     return {
-      lines: ["Better. Now you look like someone who might survive past the first trees."],
+      lines: [
+        "Better. Now you look like someone who might survive the first mile of trees.",
+        "Listen - deep in the forest there is old magic tied to what we forgot. If you find a broken crystal, do not leave it.",
+        "Bram says a shrine waits beyond the worst of the shadows. That is where this must end.",
+      ],
       onComplete: null,
     };
   }
@@ -3012,23 +3026,6 @@ class VillageScene extends Phaser.Scene {
     this.menu.refresh(); // attack/defense numbers update immediately
     const activeName = this.quests.active ? this.quests.active.name : null;
 
-    // #region agent log
-    if (id === "leather_armor") {
-      dbgLog(
-        "game.js:equipItem",
-        "leather armor equip attempt",
-        {
-          activeQuest: activeName,
-          armorGiven: this.flags.armorGiven,
-          armorEquippedFlag: this.flags.armorEquipped,
-          equippedArmor: this.equipment.get("armor"),
-          defense: this.playerData.defense,
-        },
-        "C"
-      );
-    }
-    // #endregion
-
     if (
       id === "old_iron_sword" &&
       activeName === "Fragments of Yesterday" &&
@@ -3049,9 +3046,6 @@ class VillageScene extends Phaser.Scene {
           this.notifications.notify("Quest Updated: Reach the Forest Gate");
         }
       }
-      // #region agent log
-      dbgLog("game.js:equipItem", "leather armor sync", { armorEquippedFlag: this.flags.armorEquipped, activeQuest: activeName }, "A");
-      // #endregion
     }
   }
 
@@ -3235,12 +3229,15 @@ class VillageScene extends Phaser.Scene {
   _spiritConvo() {
     return {
       lines: [
-        "You found your way here. Few remember enough to even try.",
-        "Long ago, Willowmere did something it could not live with. An innocent was blamed for a betrayal they never committed.",
-        "Rather than face that guilt, the village begged the old magic to take the memory away. The curse was not a punishment. It was a choice.",
-        "But forgetting has a price. Each night, a little more of the village slips away.",
-        "Mira's memories endured only because she held to something the curse could not pry loose - she cared for you.",
-        "The truth is heavy, traveler. Yet only the truth can let Willowmere wake. Will you restore what was taken?",
+        "You made it. Few ever reach this place with their mind intact.",
+        "I am what is left of the truth Willowmere refused to keep.",
+        "Here is what happened, simply: years ago, the village blamed an innocent traveler for a crime the elders committed.",
+        "They drove that person into the forest and cast a forgetting spell so no one would ever speak of it again.",
+        "The spell worked too well. It spread. Now the whole village forgets by sunrise - on purpose, so the guilt never has to be faced.",
+        "The shadows in the woods are that guilt made real. The crystal you carried is a piece of the memory they tried to bury.",
+        "Mira still remembers you because she loved you. Love does not erase as easily as shame.",
+        "I cannot fight for you. But I can end the spell if you are willing to restore what was stolen.",
+        "Let the village remember. It will hurt - but Willowmere cannot be saved by forgetting forever.",
       ],
       onComplete: () => this.restoreMemories(),
     };
@@ -3333,38 +3330,7 @@ class VillageScene extends Phaser.Scene {
         const t = inter.transition;
         if (t.requires && !t.requires(this)) {
           sfx.denied();
-          // #region agent log
-          if (t.to === "forest") {
-            dbgLog(
-              "game.js:update",
-              "forest entry denied",
-              {
-                area: this.area.current,
-                armorEquippedFlag: this.flags.armorEquipped,
-                armorGiven: this.flags.armorGiven,
-                equippedArmor: this.equipment.get("armor"),
-                defense: this.playerData.defense,
-                activeQuest: this.quests.active ? this.quests.active.name : null,
-                playerX: Math.round(this.player.x),
-              },
-              "A"
-            );
-          }
-          // #endregion
         } else {
-          // #region agent log
-          if (t.to === "forest") {
-            dbgLog(
-              "game.js:update",
-              "forest entry allowed",
-              {
-                armorEquippedFlag: this.flags.armorEquipped,
-                equippedArmor: this.equipment.get("armor"),
-              },
-              "A"
-            );
-          }
-          // #endregion
           this.changeArea(t);
           return;
         }
@@ -3459,10 +3425,10 @@ class EndingScene extends Phaser.Scene {
     title.setShadow(0, 6, "rgba(0,0,0,0.5)", 8);
 
     const paragraph =
-      "The village remembered. Not all at once, and not without pain. But for the " +
-      "first time in years, Willowmere woke up to the same truth. Mira remembered " +
-      "your name. Elder Bram confessed what he had hidden. And the forest, finally " +
-      "free from silence, began to heal.";
+      "The spell broke. Not gently - memories rushed back like a flood after a long drought. " +
+      "Willowmere finally knew what it had done in the forest, and why the forgetting had never stopped. " +
+      "Mira spoke your name without hesitation. Elder Bram wept and confessed what he had hidden for years. " +
+      "The shadows thinned. For the first time in a long time, the village chose to remember.";
     this.add
       .text(GAME_WIDTH / 2, 240, paragraph, {
         fontFamily: "Trebuchet MS, sans-serif",
