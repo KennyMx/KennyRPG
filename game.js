@@ -421,6 +421,16 @@ class SFX {
 
 const sfx = new SFX();
 
+// #region agent log
+function dbgLog(location, message, data, hypothesisId) {
+  fetch("http://127.0.0.1:7530/ingest/dd490957-5254-4906-9b30-cad6a5e3031f", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "99f55f" },
+    body: JSON.stringify({ sessionId: "99f55f", location, message, data, hypothesisId, timestamp: Date.now() }),
+  }).catch(() => {});
+}
+// #endregion
+
 /* ================================================================== *
  *  STAGE 2 SYSTEMS
  *  Data definitions + small manager classes. These are intentionally
@@ -2195,7 +2205,7 @@ const AREAS = {
         kind: "sign",
         signText: "Enter",
         label: "Enter the Forest",
-        requires: (s) => s.flags.armorEquipped,
+        requires: (s) => s.equipment.get("armor") === "leather_armor",
         lockedLabel: "The forest is too dangerous. Equip your armor first.",
       },
     ],
@@ -2780,9 +2790,10 @@ class VillageScene extends Phaser.Scene {
     if (
       key === "forest_gate" &&
       this.flags.forestStarted &&
-      this.flags.armorEquipped &&
+      this.equipment.get("armor") === "leather_armor" &&
       !this.flags.forestComplete
     ) {
+      this.flags.armorEquipped = true;
       this.flags.forestComplete = true;
       this.quests.completeStep(4); // Reach the Forest Gate
       this.quests.markComplete();
@@ -2909,6 +2920,12 @@ class VillageScene extends Phaser.Scene {
         "Equip Leather Armor",
         "Reach the Forest Gate",
       ]);
+      // If leather is already equipped (e.g. quest tracker was swapped earlier),
+      // sync the equip step so progress is not lost.
+      if (this.equipment.get("armor") === "leather_armor") {
+        this.flags.armorEquipped = true;
+        if (this.flags.armorGiven) this.quests.completeStep(3);
+      }
     }
     if (!this.flags.spokeToBram) {
       return {
@@ -2995,6 +3012,23 @@ class VillageScene extends Phaser.Scene {
     this.menu.refresh(); // attack/defense numbers update immediately
     const activeName = this.quests.active ? this.quests.active.name : null;
 
+    // #region agent log
+    if (id === "leather_armor") {
+      dbgLog(
+        "game.js:equipItem",
+        "leather armor equip attempt",
+        {
+          activeQuest: activeName,
+          armorGiven: this.flags.armorGiven,
+          armorEquippedFlag: this.flags.armorEquipped,
+          equippedArmor: this.equipment.get("armor"),
+          defense: this.playerData.defense,
+        },
+        "C"
+      );
+    }
+    // #endregion
+
     if (
       id === "old_iron_sword" &&
       activeName === "Fragments of Yesterday" &&
@@ -3006,15 +3040,18 @@ class VillageScene extends Phaser.Scene {
       this.notifications.notify("Quest Complete: Fragments of Yesterday", 0x6fbf73);
     }
 
-    if (
-      id === "leather_armor" &&
-      activeName === "Into the Forest" &&
-      this.flags.armorGiven &&
-      !this.flags.armorEquipped
-    ) {
+    if (id === "leather_armor") {
       this.flags.armorEquipped = true;
-      this.quests.completeStep(3); // Equip Leather Armor
-      this.notifications.notify("Quest Updated: Reach the Forest Gate");
+      if (activeName === "Into the Forest" && this.flags.armorGiven) {
+        const step = this.quests.active && this.quests.active.steps[3];
+        if (step && !step.done) {
+          this.quests.completeStep(3);
+          this.notifications.notify("Quest Updated: Reach the Forest Gate");
+        }
+      }
+      // #region agent log
+      dbgLog("game.js:equipItem", "leather armor sync", { armorEquippedFlag: this.flags.armorEquipped, activeQuest: activeName }, "A");
+      // #endregion
     }
   }
 
@@ -3296,7 +3333,38 @@ class VillageScene extends Phaser.Scene {
         const t = inter.transition;
         if (t.requires && !t.requires(this)) {
           sfx.denied();
+          // #region agent log
+          if (t.to === "forest") {
+            dbgLog(
+              "game.js:update",
+              "forest entry denied",
+              {
+                area: this.area.current,
+                armorEquippedFlag: this.flags.armorEquipped,
+                armorGiven: this.flags.armorGiven,
+                equippedArmor: this.equipment.get("armor"),
+                defense: this.playerData.defense,
+                activeQuest: this.quests.active ? this.quests.active.name : null,
+                playerX: Math.round(this.player.x),
+              },
+              "A"
+            );
+          }
+          // #endregion
         } else {
+          // #region agent log
+          if (t.to === "forest") {
+            dbgLog(
+              "game.js:update",
+              "forest entry allowed",
+              {
+                armorEquippedFlag: this.flags.armorEquipped,
+                equippedArmor: this.equipment.get("armor"),
+              },
+              "A"
+            );
+          }
+          // #endregion
           this.changeArea(t);
           return;
         }
